@@ -1,3 +1,3 @@
 # TextArea
 
-A full screen responsive character grid using HTML 5 Canvas.
+A full screen responsive customizable character grid using HTML 5 Canvas.
