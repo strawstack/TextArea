@@ -1,27 +1,40 @@
 (async () => {
 
     function main() {
-        
-        const canvasWidth = 1210;
-        const canvasHeight = 1210;
 
         const canvas = document.querySelector("canvas");
         const ctx = canvas.getContext("2d");
+        
+        let canvasWidth = null;
+        let canvasHeight = null;
 
-        canvas.style.width = `${canvasWidth}px`;
-        canvas.style.height = `${canvasHeight}px`;
+        const init = () => {
+            canvasWidth = document.documentElement.clientWidth; // 1210;
+            canvasHeight = document.documentElement.clientHeight; // 730;
 
-        const scale = window.devicePixelRatio;
-        canvas.width = Math.floor(canvasWidth * scale);
-        canvas.height = Math.floor(canvasHeight * scale);
+            canvas.style.width = `${canvasWidth}px`;
+            canvas.style.height = `${canvasHeight}px`;
+    
+            const scale = window.devicePixelRatio;
+            canvas.width = Math.floor(canvasWidth * scale);
+            canvas.height = Math.floor(canvasHeight * scale);
+    
+            ctx.scale(scale, scale);
+        };
 
-        ctx.scale(scale, scale);
+        init();
 
-        const { start } = textarea({ canvas, ctx, options: {
-            canvasWidth,
-            canvasHeight
-        } });
-        start();
+        const { init: initTextArea, fillDemo, clearCanvas } = textarea({ canvas, ctx, options: {} });
+
+        initTextArea(canvasWidth, canvasHeight);
+        fillDemo();
+
+        window.addEventListener("resize", () => {
+            init();
+            initTextArea(canvasWidth, canvasHeight);
+            clearCanvas();
+            fillDemo();
+        });
     }
 
     await document.fonts.ready;
