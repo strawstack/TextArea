@@ -8,7 +8,7 @@
         let canvasWidth = null;
         let canvasHeight = null;
 
-        const init = () => {
+        const initCanvas = () => {
             canvasWidth = document.documentElement.clientWidth; // 1210;
             canvasHeight = document.documentElement.clientHeight; // 730;
 
@@ -22,19 +22,27 @@
             ctx.scale(scale, scale);
         };
 
-        init();
+        initCanvas();
 
-        const { init: initTextArea, fillDemo, clearCanvas } = textarea({ canvas, ctx, options: {} });
-
-        initTextArea(canvasWidth, canvasHeight);
-        fillDemo();
-
+        // TextArea
+        const ta = textarea({ canvas, ctx, options: {} });
+        const { init: initTextArea } = ta;
+        const { size } = initTextArea(canvasWidth, canvasHeight);
+        
+        /*
         window.addEventListener("resize", () => {
-            init();
+            initCanvas();
             initTextArea(canvasWidth, canvasHeight);
             clearCanvas();
             fillDemo();
-        });
+        }); */
+
+        // Terminal
+        const ter = terminal({...ta, size});
+
+        const { init: initTerminal } = ter;
+        initTerminal();
+
     }
 
     await document.fonts.ready;

@@ -22,6 +22,19 @@ function textarea({ canvas, ctx, options }) {
         ...options
     };
 
+    function floor(value) {
+        return Math.floor(value);
+    }
+
+    function fillRect(row, col) {
+        ctx.fillRect(
+            col * state.boxWidth + state.leftMargin,
+            row * state.boxHeight + state.topMargin, 
+            state.boxWidth, 
+            state.boxHeight
+        );
+    }
+
     function strokeRect(row, col) {
         ctx.strokeRect(
             col * state.boxWidth + state.leftMargin,
@@ -31,11 +44,11 @@ function textarea({ canvas, ctx, options }) {
         );
     }
 
-    function fillRect(row, col) {
-        ctx.fillRect(
+    function clearRect(row, col) {
+        ctx.clearRect(
             col * state.boxWidth + state.leftMargin,
             row * state.boxHeight + state.topMargin, 
-            state.boxWidth, 
+            state.boxWidth,
             state.boxHeight
         );
     }
@@ -65,22 +78,29 @@ function textarea({ canvas, ctx, options }) {
         const boxHeight = fontHeight + leading;
 
         // Assign values to state
-        state.fontWidth = fontWidth;
-        state.fontHeight = fontHeight;
-        state.boxWidth = boxWidth;
-        state.boxHeight = boxHeight;
-        state.actualBoundingBoxAscent = actualBoundingBoxAscent;
-        state.actualBoundingBoxDescent = actualBoundingBoxDescent;
+        state.fontWidth = floor(fontWidth);
+        state.fontHeight = floor(fontHeight);
+        state.boxWidth = floor(boxWidth);
+        state.boxHeight = floor(boxHeight);
+        state.actualBoundingBoxAscent = floor(actualBoundingBoxAscent);
+        state.actualBoundingBoxDescent = floor(actualBoundingBoxDescent);
 
         // Calculate left and top margin
-        const maxCharsWidth = Math.floor((canvasWidth - 2 * minPadding) / boxWidth);
+        const maxCharsWidth = (canvasWidth - 2 * minPadding) / boxWidth;
         const extraWidth = canvasWidth - (maxCharsWidth * boxWidth);
-        const maxCharsHeight = Math.floor((canvasHeight - 2 * minPadding) / boxHeight);
+        const maxCharsHeight = (canvasHeight - 2 * minPadding) / boxHeight;
         const extraHeight = canvasHeight - (maxCharsHeight * boxHeight);
-        state.canvasCols = maxCharsWidth;
-        state.canvasRows = maxCharsHeight;
-        state.leftMargin = Math.floor(extraWidth/2);
-        state.topMargin = Math.floor(extraHeight/2);
+        state.canvasCols = floor(maxCharsWidth);
+        state.canvasRows = floor(maxCharsHeight);
+        state.leftMargin = floor(extraWidth/2);
+        state.topMargin = floor(extraHeight/2);
+
+        return {
+            size: {
+                rows: state.canvasRows,
+                cols: state.canvasCols
+            }
+        };
     }
 
     function fillDemo() {
@@ -100,9 +120,9 @@ function textarea({ canvas, ctx, options }) {
         init,
         fillDemo,
         fillText,
-        strokeRect,
         fillRect,
+        strokeRect,
+        clearRect,
         clearCanvas
     };
-
 }
