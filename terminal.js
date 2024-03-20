@@ -98,7 +98,9 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
 
     // Event handlers
     function handleKeyDown(e) {
+
         const { key } = e;
+        
         if (isPrintable(key)) {
             writeAtCursor(key);
             moveCursor(cursorDir.RIGHT);
