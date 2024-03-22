@@ -12,6 +12,10 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 
 # Todo
 
+- [ ] Typing in middle of line shifts characters to the right
+- [ ] Typing a char and deleting a char correctly modify cmd
+- [ ] Ability to use up/down arrow to cycle commands
+
 - [ ] Prompt
 - [ ] Up arrow cycles previous commands
 
