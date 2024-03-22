@@ -22,8 +22,8 @@ function textarea({ canvas, ctx, options }) {
         ...options
     };
 
-    function floor(value) {
-        return Math.floor(value);
+    function round(value) {
+        return Math.round(value);
     }
 
     function fillRect(row, col) {
@@ -78,22 +78,22 @@ function textarea({ canvas, ctx, options }) {
         const boxHeight = fontHeight + leading;
 
         // Assign values to state
-        state.fontWidth = floor(fontWidth);
-        state.fontHeight = floor(fontHeight);
-        state.boxWidth = floor(boxWidth);
-        state.boxHeight = floor(boxHeight);
-        state.actualBoundingBoxAscent = floor(actualBoundingBoxAscent);
-        state.actualBoundingBoxDescent = floor(actualBoundingBoxDescent);
+        state.fontWidth = round(fontWidth);
+        state.fontHeight = round(fontHeight);
+        state.boxWidth = round(boxWidth);
+        state.boxHeight = round(boxHeight);
+        state.actualBoundingBoxAscent = round(actualBoundingBoxAscent);
+        state.actualBoundingBoxDescent = round(actualBoundingBoxDescent);
 
         // Calculate left and top margin
-        const maxCharsWidth = (canvasWidth - 2 * minPadding) / boxWidth;
-        const extraWidth = canvasWidth - (maxCharsWidth * boxWidth);
-        const maxCharsHeight = (canvasHeight - 2 * minPadding) / boxHeight;
-        const extraHeight = canvasHeight - (maxCharsHeight * boxHeight);
-        state.canvasCols = floor(maxCharsWidth);
-        state.canvasRows = floor(maxCharsHeight);
-        state.leftMargin = floor(extraWidth/2);
-        state.topMargin = floor(extraHeight/2);
+        const maxCharsWidth = (canvasWidth - 2 * minPadding) / state.boxWidth;
+        const extraWidth = canvasWidth - (maxCharsWidth * state.boxWidth);
+        const maxCharsHeight = (canvasHeight - 2 * minPadding) / state.boxHeight;
+        const extraHeight = canvasHeight - (maxCharsHeight * state.boxHeight);
+        state.canvasCols = round(maxCharsWidth);
+        state.canvasRows = round(maxCharsHeight);
+        state.leftMargin = round(extraWidth/2);
+        state.topMargin = round(extraHeight/2);
 
         return {
             size: {
@@ -110,8 +110,9 @@ function textarea({ canvas, ctx, options }) {
                 let symb = chars[Math.floor(Math.random() * chars.length)];
                 if (col === 0) symb = "^";
                 if (col === state.canvasCols - 1) symb = "$";
-                if (Math.random() < 0.5) fillRect(row, col);
-                fillText(row, col, symb);
+                // if (Math.random() < 0.5) fillRect(row, col);
+                // fillText(row, col, symb);
+                strokeRect(row, col);
             }
         }
     }
