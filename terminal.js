@@ -32,6 +32,13 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         return JSON.stringify({row, col});
     }
 
+    function numberToPos(number) {
+        return {
+            row: Math.floor(number / size.cols),
+            col: number % size.cols
+        };
+    }
+
     function eq(v1, v2) {
         return v1.row === v2.row && v1.col === v2.col;
     }
@@ -88,6 +95,7 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         return {row: nrow, col: ncol};
     }
 
+    // Helper
     function getPrompt() {
         return `${state.path.join("")}$ `;
     }
@@ -106,10 +114,6 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
     }
 
     // Write
-    function writeAtCursor(char) {
-        writeCharAtCoord(char, state.cursorPos);
-    }
-
     function writeCharAtCoord(char, {row, col}) {
         state.charMemory[hashCoord({row, col})] = char;
         fillText(row, col, char);
@@ -128,21 +132,6 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         writeTextAtCursor(prompt);
         moveCursor(cursorDir.RIGHT, prompt.length);
         drawCursor();
-    }
-
-    // Delete
-    function deleteCharAtCursor() {
-        const {row, col} = {...state.cursorPos};
-        for (let cc = col; cc < size.cols - 1; cc++ ) {
-            const char = getLastChar({row, col: cc + 1});
-            
-            clearRect(row, cc);
-            delete state.charMemory[hashCoord({row, col: cc})];
-
-            if (char === null) break;
-            writeCharAtCoord(char, {row, col: cc});
-        }
-        clearRect(row, size.cols - 1);
     }
 
     // Cursor
@@ -172,13 +161,33 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
     }
 
     // Cmd
-    function updateCmd({row, col}, char) {
-        const cmdIndex = characterDistance(state.cmdStartPos, {row, col});
-        console.log(cmdIndex);
+    function cmdShiftInsertChar(cursorPos, char) {
+        const cmdIndex = characterDistance(state.cmdStartPos, cursorPos);
+        const ccmd = state.cmds[state.cmdIndex];
+        let cpos = {...cursorPos};
+        for (let i = cmdIndex; i < ccmd.length; i++) {
+            cpos = movePos(cpos, cursorDir.RIGHT);
+            clearRect(cpos.row, cpos.col);
+            writeCharAtCoord(ccmd[i], cpos);
+        }
+        clearRect(cursorPos.row, cursorPos.col);
+        writeCharAtCoord(char, state.cursorPos);
+        state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
     }
 
-    function removeFromCmd({row, col}, char) {
-
+    function cmdShiftDeleteChar(pos) {
+        const cmdIndex = characterDistance(state.cmdStartPos, pos);
+        const ccmd = state.cmds[state.cmdIndex];
+        let cpos = {...pos};
+        for (let i = cmdIndex; i < ccmd.length - 1; i++) {
+            clearRect(cpos.row, cpos.col);
+            writeCharAtCoord(ccmd[i + 1], cpos);
+            cpos = movePos(cpos, cursorDir.RIGHT);
+        }
+        const cmdEnd = numberToPos(charMagnitude(state.cmdStartPos) + ccmd.length - 1);
+        delete state.charMemory[hashCoord(cmdEnd)];
+        clearRect(cmdEnd.row, cmdEnd.col);
+        state.cmds[state.cmdIndex].splice(cmdIndex, 1);
     }
 
     // Event handlers
@@ -187,24 +196,28 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         const { key } = e;
         
         if (isPrintable(key)) {
-            writeAtCursor(key);
-            updateCmd(state.cursorPos, key);
+            cmdShiftInsertChar(state.cursorPos, key);
             moveCursor(cursorDir.RIGHT);
 
         } else if (key === "ArrowLeft") {
-            moveCursor(cursorDir.LEFT);
+            if (characterDistance(state.cmdStartPos, state.cursorPos) > 0) {
+                moveCursor(cursorDir.LEFT);
+            }
 
         } else if (key === "ArrowRight") {
-            moveCursor(cursorDir.RIGHT);
+            if (characterDistance(state.cmdStartPos, state.cursorPos) < state.cmds[state.cmdIndex].length) {
+                moveCursor(cursorDir.RIGHT);
+            }
 
         } else if (key === "Backspace") {
-            moveCursor(cursorDir.LEFT);
-            deleteCharAtCursor();
-            removeFromCmd(state.cursorPos, key);
-            drawCursor();
-
-        } else if (key === "Enter") {
+            if (characterDistance(state.cmdStartPos, state.cursorPos) > 0) {
+                moveCursor(cursorDir.LEFT);
+                cmdShiftDeleteChar(state.cursorPos);
+                drawCursor();
+            }
             
+        } else if (key === "Enter") {
+            console.log(state.cmds[state.cmdIndex]);
 
         } else {
             console.log(key);

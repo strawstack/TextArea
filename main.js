@@ -29,14 +29,6 @@
         const { init: initTextArea } = ta;
         const { size } = initTextArea(canvasWidth, canvasHeight);
         
-        /*
-        window.addEventListener("resize", () => {
-            initCanvas();
-            initTextArea(canvasWidth, canvasHeight);
-            clearCanvas();
-            fillDemo();
-        }); */
-
         // Terminal
         const ter = terminal({...ta, size});
 
