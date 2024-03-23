@@ -12,15 +12,13 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 
 # Todo
 
-- [ ] Bash acts on a command
-- [ ] Implement vertical scroll
-
 - [ ] Implement command wrapping when width changes
-
-- [ ] Enter submits command
 - [ ] Bring in filesystem
 - [ ] Vim installs itself as a bash command
 
+- [x] Enter submits command
+- [x] Bash acts on a command
+- [x] Implement vertical scroll
 - [x] Implement new line wrapping when typing or editing long commands
 - [x] Typing in middle of line shifts characters to the right
 - [x] Typing a char and deleting a char correctly modify cmd
