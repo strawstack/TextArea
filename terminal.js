@@ -12,6 +12,8 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     state.cmdStartPos = null;
 
+    state.cmdFunction = () => {};
+
     // Static
     const fontColor = 'white';
     const bkgColor = '#444444';
@@ -138,10 +140,15 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     }
 
     function writeTextAtCursor(text) {
-        let pos = state.cursorPos;
+        let pos = {...state.cursorPos};
         for (let char of text) {
-            writeCharAtCoord(char, pos);
-            pos = movePos(pos, cursorDir.RIGHT);
+            if (char === "\n") {
+                pos = movePos(pos, cursorDir.DOWN);
+                pos.col = 0;
+            } else {
+                writeCharAtCoord(char, pos);
+                pos = movePos(pos, cursorDir.RIGHT);
+            }
         }
     }
 
@@ -176,6 +183,19 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         restoreChar(state.cursorPos);
         state.cursorPos = {row, col};
         drawCursor();
+    }
+
+    function cursorDeltaFromText(data) {
+        const rows = data.split("\n");
+        return {
+            row: rows.length - 1, 
+            col: rows[rows.length - 1].length
+        };
+    }
+
+    function cursorNewLine() {
+        state.cursorPos = movePos(state.cursorPos, cursorDir.DOWN);
+        state.cursorPos.col = 0;
     }
 
     // Cmd
@@ -226,6 +246,11 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         drawCursor();
     }
 
+    // Command Event
+    function onCommand(cmd) {
+        return state.cmdFunction(cmd);
+    }
+
     // Event handlers
     function handleKeyDown(e) {
 
@@ -269,14 +294,22 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
             if (state.cmdIndex !== 0) state.cmds[0] = cmd;
 
-            clearCmd();
-            state.cursorPos = state.cmdStartPos;
-            drawCursor();
+            clearCursor();
+            cursorNewLine();
 
             state.cmds.unshift([]);
             state.cmdIndex = 0;
 
-            console.log(`cmd: ${JSON.stringify(cmd)}`);
+            const { type, data } = onCommand(cmd.join(""));
+
+            if (type === "text") {
+                writeTextAtCursor(data);
+                state.cursorPos = add(state.cursorPos, cursorDeltaFromText(data));
+            }
+
+            cursorNewLine();
+            writePrompt();
+            state.cmdStartPos = {...state.cursorPos};
 
         } else {
             // console.log(key);
@@ -299,6 +332,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     }
 
     return {
-        init
+        init,
+        onCommand: func => state.cmdFunction = func
     };
 }

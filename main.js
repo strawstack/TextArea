@@ -35,6 +35,10 @@
         const { init: initTerminal } = ter;
         initTerminal();
 
+        // Bash
+        const { init: initBash } = bash(ter);
+        initBash();
+
     }
 
     await document.fonts.ready;
