@@ -1,4 +1,4 @@
-function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRect, clearCanvas, size }) {
+function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     // State
     const state = {};
@@ -13,6 +13,9 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
     state.cmdStartPos = null;
 
     // Static
+    const fontColor = 'white';
+    const bkgColor = '#444444';
+
     const cursorDir = {
         UP: 0,
         RIGHT: 1,
@@ -100,6 +103,16 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         return `${state.path.join("")}$ `;
     }
 
+    function fillCanvasWithColor(color) {
+        fillStyle(color);
+        fillCanvas();
+    }
+
+    function fillRectWithColor(row, col, color) {
+        fillStyle(color);
+        fillRect(row, col);
+    }
+
     // Memory
     function getLastChar({row, col}) {
         const h = hashCoord({row, col});
@@ -110,13 +123,18 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         const h = hashCoord({row, col});
         let char = null;
         if (h in state.charMemory) char = state.charMemory[h];
-        if (char !== null) fillText(row, col, char);
+        if (char !== null) fillTextWithColor(row, col, char, fontColor);
     }
 
     // Write
+    function fillTextWithColor(row, col, char, color) {
+        fillStyle(color);
+        fillText(row, col, char);
+    }
+
     function writeCharAtCoord(char, {row, col}) {
         state.charMemory[hashCoord({row, col})] = char;
-        fillText(row, col, char);
+        fillTextWithColor(row, col, char, fontColor);
     }
 
     function writeTextAtCursor(text) {
@@ -136,11 +154,11 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
 
     // Cursor
     function clearCursor() {
-        clearRect(state.cursorPos.row, state.cursorPos.col);
+        fillRectWithColor(state.cursorPos.row, state.cursorPos.col, bkgColor);
     }
 
     function drawCursor() {
-        fillRect(state.cursorPos.row, state.cursorPos.col);
+        fillRectWithColor(state.cursorPos.row, state.cursorPos.col, fontColor);
     }
 
     function moveCursor(dir, times) {
@@ -167,10 +185,10 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         let cpos = {...cursorPos};
         for (let i = cmdIndex; i < ccmd.length; i++) {
             cpos = movePos(cpos, cursorDir.RIGHT);
-            clearRect(cpos.row, cpos.col);
+            fillRectWithColor(cpos.row, cpos.col, bkgColor);
             writeCharAtCoord(ccmd[i], cpos);
         }
-        clearRect(cursorPos.row, cursorPos.col);
+        fillRectWithColor(cursorPos.row, cursorPos.col, bkgColor);
         writeCharAtCoord(char, state.cursorPos);
         state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
     }
@@ -180,13 +198,13 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         const ccmd = state.cmds[state.cmdIndex];
         let cpos = {...pos};
         for (let i = cmdIndex; i < ccmd.length - 1; i++) {
-            clearRect(cpos.row, cpos.col);
+            fillRectWithColor(cpos.row, cpos.col, bkgColor);
             writeCharAtCoord(ccmd[i + 1], cpos);
             cpos = movePos(cpos, cursorDir.RIGHT);
         }
         const cmdEnd = numberToPos(charMagnitude(state.cmdStartPos) + ccmd.length - 1);
         delete state.charMemory[hashCoord(cmdEnd)];
-        clearRect(cmdEnd.row, cmdEnd.col);
+        fillRectWithColor(cmdEnd.row, cmdEnd.col, bkgColor);
         state.cmds[state.cmdIndex].splice(cmdIndex, 1);
     }
 
@@ -195,7 +213,7 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         let pos = state.cmdStartPos;
         for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
             delete state.charMemory[hashCoord(pos)];
-            clearRect(pos.row, pos.col);
+            fillRectWithColor(pos.row, pos.col, bkgColor);
             pos = movePos(pos, cursorDir.RIGHT);
         }
     }
@@ -267,6 +285,8 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
     }
 
     function init() {
+        fillCanvasWithColor(bkgColor);
+
         state.cursorPos = {row: 0, col: 0};
         state.charMemory = {}; // map { (row, col) hash -> last entered character }
         state.cmdIndex = 0;

@@ -12,6 +12,8 @@ function textarea({ canvas, ctx, options }) {
     state.canvasRows = null;
     state.leftMargin = null;
     state.topMargin = null;
+    state.canvasWidth = null;
+    state.canvasHeight = null;
 
     const opts = {
         fontSize: 30,
@@ -24,6 +26,10 @@ function textarea({ canvas, ctx, options }) {
 
     function round(value) {
         return Math.round(value);
+    }
+
+    function fillStyle(color) {
+        ctx.fillStyle = color;
     }
 
     function fillRect(row, col) {
@@ -62,10 +68,17 @@ function textarea({ canvas, ctx, options }) {
     }
 
     function clearCanvas() {
-        ctx.clearRect(0, 0, opts.canvasWidth, opts.canvasHeight);
+        ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+    }
+
+    function fillCanvas() {
+        ctx.fillRect(0, 0, state.canvasWidth, state.canvasHeight);
     }
 
     function init(canvasWidth, canvasHeight) {
+        state.canvasWidth = canvasWidth;
+        state.canvasHeight = canvasHeight;
+
         const { fontSize, fontFamily, leading, kerning, minPadding } = opts;
         ctx.font = `${fontSize}px ${fontFamily}`;
         
@@ -124,6 +137,8 @@ function textarea({ canvas, ctx, options }) {
         fillRect,
         strokeRect,
         clearRect,
-        clearCanvas
+        clearCanvas,
+        fillCanvas,
+        fillStyle
     };
 }

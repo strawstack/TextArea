@@ -12,15 +12,6 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 
 # Todo
 
-- [x] Typing in middle of line shifts characters to the right
-- [x] Typing a char and deleting a char correctly modify cmd
-- [ ] Ability to use up/down arrow to cycle commands
-
-- [ ] Prompt
-- [ ] Up arrow cycles previous commands
-
-- [ ] Bound cursor to "used area"
-
 - [ ] Implement new line wrapping when typing or editing long commands
     - [ ] Implement command wrapping when width changes
 
@@ -30,3 +21,10 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 - [ ] Bash acts on a command
     - [ ] Bring in filesystem
 - [ ] Vim installs itself as a bash command
+
+- [x] Typing in middle of line shifts characters to the right
+- [x] Typing a char and deleting a char correctly modify cmd
+- [x] Ability to use up/down arrow to cycle commands
+- [x] Prompt
+- [x] Up arrow cycles previous commands
+- [x] Bound cursor to "used area"
