@@ -190,6 +190,24 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         state.cmds[state.cmdIndex].splice(cmdIndex, 1);
     }
 
+    function clearCmd() {
+        clearCursor();
+        let pos = state.cmdStartPos;
+        for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
+            delete state.charMemory[hashCoord(pos)];
+            clearRect(pos.row, pos.col);
+            pos = movePos(pos, cursorDir.RIGHT);
+        }
+    }
+
+    function showCmd() {
+        state.cursorPos = state.cmdStartPos;
+        const cmd = state.cmds[state.cmdIndex];
+        writeTextAtCursor(cmd);
+        state.cursorPos = numberToPos(charMagnitude(state.cursorPos) + cmd.length);
+        drawCursor();
+    }
+
     // Event handlers
     function handleKeyDown(e) {
 
@@ -198,6 +216,18 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
         if (isPrintable(key)) {
             cmdShiftInsertChar(state.cursorPos, key);
             moveCursor(cursorDir.RIGHT);
+
+        } else if (key === "ArrowUp") {
+            clearCmd();
+            state.cmdIndex += 1;
+            state.cmdIndex = Math.min(state.cmdIndex, state.cmds.length - 1);
+            showCmd(state.cmdIndex);
+
+        } else if (key === "ArrowDown") {
+            clearCmd();
+            state.cmdIndex -= 1;
+            state.cmdIndex = Math.max(state.cmdIndex, 0);
+            showCmd(state.cmdIndex);
 
         } else if (key === "ArrowLeft") {
             if (characterDistance(state.cmdStartPos, state.cursorPos) > 0) {
@@ -217,10 +247,21 @@ function terminal({ init: initTextArea, fillText, fillRect, strokeRect, clearRec
             }
             
         } else if (key === "Enter") {
-            console.log(state.cmds[state.cmdIndex]);
+            const cmd = state.cmds[state.cmdIndex];
+
+            if (state.cmdIndex !== 0) state.cmds[0] = cmd;
+
+            clearCmd();
+            state.cursorPos = state.cmdStartPos;
+            drawCursor();
+
+            state.cmds.unshift([]);
+            state.cmdIndex = 0;
+
+            console.log(`cmd: ${JSON.stringify(cmd)}`);
 
         } else {
-            console.log(key);
+            // console.log(key);
 
         }
     }
