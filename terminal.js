@@ -14,6 +14,9 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     state.cmdFunction = () => {};
 
+    state.scroll = null;
+    state.maxScroll = null;
+
     // Static
     const fontColor = 'white';
     const bkgColor = '#444444';
@@ -78,6 +81,34 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         return `${lowAlph}${highAlph}${number}${symb}`.indexOf(key) !== -1; 
     }
 
+    function renderScroll() {
+        fillCanvasWithColor(bkgColor);
+        for (let row = state.scroll; row < state.scroll + size.rows; row++) {
+            for (let col = 0; col < size.cols; col++) {
+                const char = getCharMemoryAbs({row, col});
+                if (char !== null) writeCharAtCoord(char, {row: row - state.scroll, col});
+            }
+        }
+    }
+
+    function scroll(n) {
+        state.scroll += n;
+        if (state.scroll < 0) state.scroll = 0;
+        renderScroll();
+    }
+
+    function scrollIfNecessary({ row, col }) {
+        const viewTopLine = state.scroll; 
+        const viewBotLine = state.scroll + size.rows - 1; 
+        if (row < viewTopLine) {
+            scroll(row - viewTopLine);
+            
+        } else if (row > viewBotLine) {
+            scroll(viewTopLine - row);
+
+        }
+    }
+
     function movePos({row, col}, dir) {
         const vec = lookupVecFromDir[dir];
         let {row: nrow, col: ncol} = add({row, col}, vec);
@@ -93,10 +124,11 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
         }
 
-        // Clamp row inside document
+        // Clamp row at top
         if (nrow < 0) nrow = 0;
-        if (nrow >= size.rows) nrow = size.rows - 1;
 
+        scrollIfNecessary({row: nrow, col: ncol});
+        
         return {row: nrow, col: ncol};
     }
 
@@ -115,39 +147,59 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         fillRect(row, col);
     }
 
+    function relativeFromAbsPos(cp) {
+        return {
+            row: cp.row - state.scroll,
+            col: cp.col
+        };
+    }
+
     // Memory
-    function getLastChar({row, col}) {
+    function saveCharMemory({row, col}, char) { // relative to viewport
+        const globalRow = state.scroll + row;
+        state.maxScroll = Math.max(state.maxScroll, globalRow);
+        state.charMemory[hashCoord({row: globalRow, col})] = char;
+    }
+
+    function getCharMemory({row, col}) { // relative to viewport
+        return getCharMemoryAbs({row: row + state.scroll, col})
+    }
+
+    function getCharMemoryAbs({row, col}) {
         const h = hashCoord({row, col});
-        return (h in state.charMemory) ? state.charMemory[h] : null;
+        if (h in state.charMemory) return state.charMemory[h];
+        return null;
     }
 
     function restoreChar({row, col}) {
-        const h = hashCoord({row, col});
-        let char = null;
-        if (h in state.charMemory) char = state.charMemory[h];
-        if (char !== null) fillTextWithColor(row, col, char, fontColor);
+        const char = getCharMemoryAbs({row, col});
+        if (char !== null) writeCharAtCoord(char, {row: row - state.scroll, col});
+    }
+
+    function deleteCharMemory({row, col}) {
+        delete state.charMemory[hashCoord({row: row + state.scroll, col})];
     }
 
     // Write
     function fillTextWithColor(row, col, char, color) {
         fillStyle(color);
+        saveCharMemory({row, col}, char);
         fillText(row, col, char);
     }
 
     function writeCharAtCoord(char, {row, col}) {
-        state.charMemory[hashCoord({row, col})] = char;
         fillTextWithColor(row, col, char, fontColor);
     }
 
     function writeTextAtCursor(text) {
-        let pos = {...state.cursorPos};
+        let cp = state.cursorPos;
         for (let char of text) {
             if (char === "\n") {
-                pos = movePos(pos, cursorDir.DOWN);
-                pos.col = 0;
+                cp = movePos(cp, cursorDir.DOWN);
+                cp.col = 0;
             } else {
-                writeCharAtCoord(char, pos);
-                pos = movePos(pos, cursorDir.RIGHT);
+                writeCharAtCoord(char, relativeFromAbsPos(cp));
+                cp = movePos(cp, cursorDir.RIGHT);
             }
         }
     }
@@ -161,11 +213,13 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     // Cursor
     function clearCursor() {
-        fillRectWithColor(state.cursorPos.row, state.cursorPos.col, bkgColor);
+        const cp = getCursorPosRelative();
+        fillRectWithColor(cp.row, cp.col, bkgColor);
     }
 
     function drawCursor() {
-        fillRectWithColor(state.cursorPos.row, state.cursorPos.col, fontColor);
+        const cp = getCursorPosRelative();
+        fillRectWithColor(cp.row, cp.col, fontColor);
     }
 
     function moveCursor(dir, times) {
@@ -175,13 +229,6 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         for (let i = 0; i < times; i++) {
             state.cursorPos = movePos(state.cursorPos, dir);
         }
-        drawCursor();
-    }
-
-    function moveCursorToPos({row, col}) {
-        clearCursor();
-        restoreChar(state.cursorPos);
-        state.cursorPos = {row, col};
         drawCursor();
     }
 
@@ -198,9 +245,17 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         state.cursorPos.col = 0;
     }
 
+    function getCursorPosRelative() {
+        return {
+            row: state.cursorPos.row - state.scroll,
+            col: state.cursorPos.col
+        };
+    }
+
     // Cmd
     function cmdShiftInsertChar(cursorPos, char) {
-        const cmdIndex = characterDistance(state.cmdStartPos, cursorPos);
+        const cmdPos = getCommandPosRelative();
+        const cmdIndex = characterDistance(cmdPos, cursorPos);
         const ccmd = state.cmds[state.cmdIndex];
         let cpos = {...cursorPos};
         for (let i = cmdIndex; i < ccmd.length; i++) {
@@ -209,12 +264,14 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             writeCharAtCoord(ccmd[i], cpos);
         }
         fillRectWithColor(cursorPos.row, cursorPos.col, bkgColor);
-        writeCharAtCoord(char, state.cursorPos);
+        const cp = getCursorPosRelative();
+        writeCharAtCoord(char, cp);
         state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
     }
 
     function cmdShiftDeleteChar(pos) {
-        const cmdIndex = characterDistance(state.cmdStartPos, pos);
+        const cmdPos = getCommandPosRelative();
+        const cmdIndex = characterDistance(cmdPos, pos);
         const ccmd = state.cmds[state.cmdIndex];
         let cpos = {...pos};
         for (let i = cmdIndex; i < ccmd.length - 1; i++) {
@@ -222,19 +279,19 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             writeCharAtCoord(ccmd[i + 1], cpos);
             cpos = movePos(cpos, cursorDir.RIGHT);
         }
-        const cmdEnd = numberToPos(charMagnitude(state.cmdStartPos) + ccmd.length - 1);
-        delete state.charMemory[hashCoord(cmdEnd)];
+        const cmdEnd = numberToPos(charMagnitude(cmdPos) + ccmd.length - 1);
+        deleteCharMemory(cmdEnd);
         fillRectWithColor(cmdEnd.row, cmdEnd.col, bkgColor);
         state.cmds[state.cmdIndex].splice(cmdIndex, 1);
     }
 
     function clearCmd() {
         clearCursor();
-        let pos = state.cmdStartPos;
+        let cmdPos = getCommandPosRelative();
         for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
-            delete state.charMemory[hashCoord(pos)];
-            fillRectWithColor(pos.row, pos.col, bkgColor);
-            pos = movePos(pos, cursorDir.RIGHT);
+            deleteCharMemory(cmdPos);
+            fillRectWithColor(cmdPos.row, cmdPos.col, bkgColor);
+            cmdPos = movePos(cmdPos, cursorDir.RIGHT);
         }
     }
 
@@ -246,18 +303,40 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         drawCursor();
     }
 
+    function getCommandPosRelative() {
+        return {
+            row: state.cmdStartPos.row - state.scroll,
+            col: state.cmdStartPos.col
+        };
+    }
+
     // Command Event
     function onCommand(cmd) {
         return state.cmdFunction(cmd);
     }
 
     // Event handlers
-    function handleKeyDown(e) {
+    function handleMouseWheel(e) {
+        const { deltaY } = e;
+        if (deltaY < 0) {
+            scroll(-1);
+            drawCursor();
+        } else {
+            if (state.scroll < state.maxScroll) {
+                scroll(1);
+                drawCursor();
+            }
+        }
+    }
 
+    function handleKeyDown(e) {
+        
         const { key } = e;
         
+        const cmdOffset = characterDistance(getCommandPosRelative(), getCursorPosRelative());
+
         if (isPrintable(key)) {
-            cmdShiftInsertChar(state.cursorPos, key);
+            cmdShiftInsertChar(getCursorPosRelative(), key);
             moveCursor(cursorDir.RIGHT);
 
         } else if (key === "ArrowUp") {
@@ -273,23 +352,24 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             showCmd(state.cmdIndex);
 
         } else if (key === "ArrowLeft") {
-            if (characterDistance(state.cmdStartPos, state.cursorPos) > 0) {
+            if (cmdOffset > 0) {
                 moveCursor(cursorDir.LEFT);
             }
 
         } else if (key === "ArrowRight") {
-            if (characterDistance(state.cmdStartPos, state.cursorPos) < state.cmds[state.cmdIndex].length) {
+            if (cmdOffset < state.cmds[state.cmdIndex].length) {
                 moveCursor(cursorDir.RIGHT);
             }
 
         } else if (key === "Backspace") {
-            if (characterDistance(state.cmdStartPos, state.cursorPos) > 0) {
+            if (cmdOffset > 0) {
                 moveCursor(cursorDir.LEFT);
-                cmdShiftDeleteChar(state.cursorPos);
+                cmdShiftDeleteChar(getCursorPosRelative());
                 drawCursor();
             }
             
         } else if (key === "Enter") {
+            debugger
             const cmd = state.cmds[state.cmdIndex];
 
             if (state.cmdIndex !== 0) state.cmds[0] = cmd;
@@ -325,10 +405,13 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         state.cmdIndex = 0;
         state.cmds = [[]];
         state.path = ["/"];
+        state.scroll = 0;
+        state.maxScroll = 0;
 
         writePrompt();
         state.cmdStartPos = {...state.cursorPos};
         window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("wheel", handleMouseWheel);
     }
 
     return {
