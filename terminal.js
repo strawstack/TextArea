@@ -4,18 +4,10 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     const state = {};
     state.cursorPos = null;
     state.charMemory = null; // map { (row, col) hash -> last entered character }
-    
-    state.cmdIndex = null;
-    state.cmds = null;
-    
-    state.path = null;
 
     state.cmdStartPos = null;
 
     state.cmdFunction = () => {};
-
-    state.scroll = null;
-    state.maxScroll = null;
 
     const color = {
         font: 'white',
@@ -35,23 +27,17 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     };
 
-    function isPrintable(key) {
-        const number  = "0123456789";
-        const lo_alph = "abcdefghijklmnopqrstuvwxyz";
-        const hi_alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const symb    = `!@#$%^&*()-_=+[{]};:'",<.>/?~ `;
-        return `${number}${lo_alph}${hi_alph}${symb}`.indexOf(key) !== -1; 
-    }
-
     const view = {
+        offset: 0,
+        max_offset: 0,
         scroll(n) {
-            state.scroll += n;
-            if (state.scroll < 0) state.scroll = 0;
+            this.offset += n;
+            if (this.offset < 0) this.offset = 0;
             this._render();
         },
         scrollMaybe({row}) {
-            const viewTopLine = state.scroll; 
-            const viewBotLine = state.scroll + size.rows - 1; 
+            const viewTopLine = this.offset; 
+            const viewBotLine = this.offset + size.rows - 1; 
             if (row < viewTopLine) {
                 this.scroll(row - viewTopLine);
                 
@@ -62,7 +48,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         },
         _render() {
             fill.canvas(color.background);
-            for (let row = state.scroll; row < state.scroll + size.rows; row++) {
+            for (let row = this.offset; row < this.offset + size.rows; row++) {
                 for (let col = 0; col < size.cols; col++) {
                     const char = mem.get({row, col});
                     if (char !== null) write.char(to.local({row, col}), char, color.font);
@@ -101,13 +87,13 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     const to = {
         global({row, col}) {
             return {
-                row: row + state.scroll,
+                row: row + view.offset,
                 col
             };
         },
         local({row, col}) {
             return {
-                row: row - state.scroll,
+                row: row - view.offset,
                 col
             };
         },
@@ -143,11 +129,10 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     };
 
-    // Memory
     const mem = {
         memory: {},
         save({row, col}, char) {
-            state.maxScroll = Math.max(state.maxScroll, row); // Track maxScroll
+            view.max_offset = Math.max(view.max_offset, row); // Track maxScroll
             this.memory[this._hash({row, col})] = char;
         },
         get({row, col}) {
@@ -167,10 +152,10 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     };
 
-    // Write
     const write = {
+        path: ['/'],
         prompt() {
-            const prompt = `${state.path.join("")}$ `;
+            const prompt = `${this.path.join("")}$ `;
             this.text(prompt);
             cursor.move(vec.RIGHT, prompt.length);
             cursor.draw();
@@ -216,12 +201,13 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     };
 
-    // Cmd
     const cmd = {
+        index: 0,
+        lst: [[]],
         clear() {
             cursor.clear();
             let pos = state.cmdStartPos;
-            for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
+            for (let i = 0; i < this.lst[this.index].length; i++) {
                 mem.delete(pos);
                 fill.rect(to.local(pos), color.background);
                 pos = move.pos(pos, vec.RIGHT);
@@ -229,9 +215,9 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         },
         show() {
             state.cursorPos = state.cmdStartPos;
-            const cmd = state.cmds[state.cmdIndex];
+            const cmd = this.lst[this.index];
             write.text(cmd);
-            state.cursorPos = to.pos(charMagnitude(state.cursorPos) + cmd.length);
+            state.cursorPos = to.pos(to.number(state.cursorPos) + cmd.length);
             cursor.draw();
         },
         run(command) {
@@ -239,7 +225,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         },
         insert(pos, char) {
             const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
-            const command = state.cmds[state.cmdIndex];
+            const command = this.lst[this.index];
             let cpos = {...pos};
             for (let i = cmdIndex; i < command.length; i++) {
                 cpos = move.pos(cpos, vec.RIGHT);
@@ -248,11 +234,11 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
             fill.rect(to.local(state.cursorPos), color.background);
             write.char(to.local(state.cursorPos), char, color.font);
-            state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
+            this.lst[this.index].splice(cmdIndex, 0, char);
         },
         delete(pos) {
             const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
-            const command = state.cmds[state.cmdIndex];
+            const command = this.lst[this.index];
             let cpos = {...pos};
             for (let i = cmdIndex; i < command.length - 1; i++) {
                 fill.rect(cpos, color.background);
@@ -262,22 +248,16 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             const cmdEnd = to.pos(to.number(to.local(state.cmdStartPos)) + command.length - 1);
             mem.delete(to.global(cmdEnd));
             fill.rect(cmdEnd, color.background);
-            state.cmds[state.cmdIndex].splice(cmdIndex, 1);
+            this.lst[this.index].splice(cmdIndex, 1);
         }
     };
 
-    // Event handlers
-    function handleMouseWheel(e) {
-        const { deltaY } = e;
-        if (deltaY < 0) {
-            view.scroll(-1);
-            cursor.draw();
-        } else {
-            if (state.scroll < state.maxScroll) {
-                view.scroll(1);
-                cursor.draw();
-            }
-        }
+    function isPrintable(key) {
+        const number  = "0123456789";
+        const lo_alph = "abcdefghijklmnopqrstuvwxyz";
+        const hi_alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const symb    = `!@#$%^&*()-_=+[{]};:'",<.>/?~ `;
+        return `${number}${lo_alph}${hi_alph}${symb}`.indexOf(key) !== -1; 
     }
 
     function handleKeyDown(e) {
@@ -292,15 +272,15 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
         } else if (key === "ArrowUp") {
             cmd.clear();
-            state.cmdIndex += 1;
-            state.cmdIndex = Math.min(state.cmdIndex, state.cmds.length - 1);
-            cmd.show(state.cmdIndex);
+            cmd.index += 1;
+            cmd.index = Math.min(cmd.index, state.cmds.length - 1);
+            cmd.show(cmd.index);
 
         } else if (key === "ArrowDown") {
             cmd.clear();
-            state.cmdIndex -= 1;
-            state.cmdIndex = Math.max(state.cmdIndex, 0);
-            cmd.show(state.cmdIndex);
+            cmd.index -= 1;
+            cmd.index = Math.max(cmd.index, 0);
+            cmd.show(cmd.index);
 
         } else if (key === "ArrowLeft") {
             if (cmdOffset > 0) {
@@ -308,7 +288,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
 
         } else if (key === "ArrowRight") {
-            if (cmdOffset < state.cmds[state.cmdIndex].length) {
+            if (cmdOffset < cmd.lst[cmd.index].length) {
                 cursor.move(vec.RIGHT);
             }
 
@@ -320,15 +300,15 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
             
         } else if (key === "Enter") {
-            const command = state.cmds[state.cmdIndex];
+            const command = cmd.lst[cmd.index];
 
-            if (state.cmdIndex !== 0) state.cmds[0] = command;
+            if (cmd.index !== 0) cmd.lst[0] = command;
 
             cursor.clear();
             cursor.newline();
 
-            state.cmds.unshift([]);
-            state.cmdIndex = 0;
+            cmd.lst.unshift([]);
+            cmd.index = 0;
 
             const { type, data } = cmd.run(command.join(""));
 
@@ -347,15 +327,23 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     }
 
+    function handleMouseWheel(e) {
+        const { deltaY } = e;
+        if (deltaY < 0) {
+            view.scroll(-1);
+            cursor.draw();
+        } else {
+            if (view.offset < view.max_offset) {
+                view.scroll(1);
+                cursor.draw();
+            }
+        }
+    }
+
     function init() {
         fill.canvas(color.background);
 
         state.cursorPos = {row: 0, col: 0};
-        state.cmdIndex = 0;
-        state.cmds = [[]];
-        state.path = ["/"];
-        state.scroll = 0;
-        state.maxScroll = 0;
 
         write.prompt();
         state.cmdStartPos = {...state.cursorPos};
