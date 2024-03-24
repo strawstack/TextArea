@@ -1,14 +1,5 @@
 function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
-    // State
-    const state = {};
-    state.cursorPos = null;
-    state.charMemory = null; // map { (row, col) hash -> last entered character }
-
-    state.cmdStartPos = null;
-
-    state.cmdFunction = () => {};
-
     const color = {
         font: 'white',
         background: '#444444'
@@ -166,7 +157,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             fillText(row, col, char);
         },
         text(text) {
-            let pos = {...state.cursorPos};
+            let pos = {...cursor.pos};
             for (let char of text) {
                 if (char === "\n") {
                     pos = move.pos(pos, vec.DOWN);
@@ -180,33 +171,39 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     };
 
     const cursor = {
+        pos: {row: 0, col: 0},
         clear() {
-            fill.rect(to.local(state.cursorPos), color.background);
+            fill.rect(to.local(this.pos), color.background);
         },
         draw() {
-            fill.rect(to.local(state.cursorPos), color.font);
+            fill.rect(to.local(this.pos), color.font);
         },
         move(vector, n) {
             if (n === undefined) n = 1;
             this.clear();
-            mem.restore(state.cursorPos);
+            mem.restore(this.pos);
             for (let i = 0; i < n; i++) {
-                state.cursorPos = move.pos(state.cursorPos, vector);
+                this.pos = move.pos(this.pos, vector);
             }
             this.draw();
         },
         newline() {
-            state.cursorPos = move.pos(state.cursorPos, vec.DOWN);
-            state.cursorPos.col = 0;
+            this.pos = move.pos(this.pos, vec.DOWN);
+            this.pos.col = 0;
         }
     };
 
     const cmd = {
         index: 0,
         lst: [[]],
+        pos: {row: 0, col: 0}, // Start Position (global space)
+        func: () => {}, // Assigned by bash via 'onCommand' export
+        run(command) {
+            return this.func(command);
+        },
         clear() {
             cursor.clear();
-            let pos = state.cmdStartPos;
+            let pos = this.pos;
             for (let i = 0; i < this.lst[this.index].length; i++) {
                 mem.delete(pos);
                 fill.rect(to.local(pos), color.background);
@@ -214,17 +211,14 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
         },
         show() {
-            state.cursorPos = state.cmdStartPos;
+            cursor.pos = this.pos;
             const cmd = this.lst[this.index];
             write.text(cmd);
-            state.cursorPos = to.pos(to.number(state.cursorPos) + cmd.length);
+            cursor.pos = to.pos(to.number(cursor.pos) + cmd.length);
             cursor.draw();
         },
-        run(command) {
-            return state.cmdFunction(command);
-        },
         insert(pos, char) {
-            const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
+            const cmdIndex = to.distance(to.local(this.pos), pos);
             const command = this.lst[this.index];
             let cpos = {...pos};
             for (let i = cmdIndex; i < command.length; i++) {
@@ -232,12 +226,12 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
                 fill.rect(cpos, color.background);
                 write.char(cpos, command[i], color.font);
             }
-            fill.rect(to.local(state.cursorPos), color.background);
-            write.char(to.local(state.cursorPos), char, color.font);
+            fill.rect(to.local(cursor.pos), color.background);
+            write.char(to.local(cursor.pos), char, color.font);
             this.lst[this.index].splice(cmdIndex, 0, char);
         },
         delete(pos) {
-            const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
+            const cmdIndex = to.distance(to.local(this.pos), pos);
             const command = this.lst[this.index];
             let cpos = {...pos};
             for (let i = cmdIndex; i < command.length - 1; i++) {
@@ -245,7 +239,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
                 write.char(cpos, command[i + 1], color.font);
                 cpos = move.pos(cpos, vec.RIGHT);
             }
-            const cmdEnd = to.pos(to.number(to.local(state.cmdStartPos)) + command.length - 1);
+            const cmdEnd = to.pos(to.number(to.local(this.pos)) + command.length - 1);
             mem.delete(to.global(cmdEnd));
             fill.rect(cmdEnd, color.background);
             this.lst[this.index].splice(cmdIndex, 1);
@@ -263,17 +257,16 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     function handleKeyDown(e) {
         
         const { key } = e;
-        
-        const cmdOffset = to.distance(to.local(state.cmdStartPos), to.local(state.cursorPos));
+        const cmd_offset = to.distance(to.local(cmd.pos), to.local(cursor.pos));
 
         if (isPrintable(key)) {
-            cmd.insert(to.local(state.cursorPos), key);
+            cmd.insert(to.local(cursor.pos), key);
             cursor.move(vec.RIGHT);
 
         } else if (key === "ArrowUp") {
             cmd.clear();
             cmd.index += 1;
-            cmd.index = Math.min(cmd.index, state.cmds.length - 1);
+            cmd.index = Math.min(cmd.index, cmd.lst.length - 1);
             cmd.show(cmd.index);
 
         } else if (key === "ArrowDown") {
@@ -283,19 +276,19 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             cmd.show(cmd.index);
 
         } else if (key === "ArrowLeft") {
-            if (cmdOffset > 0) {
+            if (cmd_offset > 0) {
                 cursor.move(vec.LEFT);
             }
 
         } else if (key === "ArrowRight") {
-            if (cmdOffset < cmd.lst[cmd.index].length) {
+            if (cmd_offset < cmd.lst[cmd.index].length) {
                 cursor.move(vec.RIGHT);
             }
 
         } else if (key === "Backspace") {
-            if (cmdOffset > 0) {
+            if (cmd_offset > 0) {
                 cursor.move(vec.LEFT);
-                cmd.delete(to.local(state.cursorPos));
+                cmd.delete(to.local(cursor.pos));
                 cursor.draw();
             }
             
@@ -314,12 +307,12 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
             if (type === "text") {
                 write.text(data);
-                state.cursorPos = vec.add(state.cursorPos, to.delta(data));
+                cursor.pos = vec.add(cursor.pos, to.delta(data));
             }
 
             cursor.newline();
             write.prompt();
-            state.cmdStartPos = {...state.cursorPos};
+            cmd.pos = {...cursor.pos};
 
         } else {
             // console.log(key);
@@ -342,17 +335,14 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     function init() {
         fill.canvas(color.background);
-
-        state.cursorPos = {row: 0, col: 0};
-
         write.prompt();
-        state.cmdStartPos = {...state.cursorPos};
+        cmd.pos = {...cursor.pos};
         window.addEventListener("keydown", handleKeyDown);
         window.addEventListener("wheel", handleMouseWheel);
     }
 
     return {
         init,
-        onCommand: func => state.cmdFunction = func
+        onCommand: func => cmd.func = func
     };
 }
