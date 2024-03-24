@@ -121,25 +121,67 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     };
 
     const mem = {
-        memory: {},
+        memory: [],
+        line_count: [], // A row in memory may occupy several visual lines
         save({row, col}, char) {
-            view.max_offset = Math.max(view.max_offset, row); // Track maxScroll
-            this.memory[this._hash({row, col})] = char;
+            this._expandMaybe({row});
+            view.max_offset = this._max_offset(); // Track maxScroll
+            const overwrite = col < this.memory[row].length;
+            this.memory[row].splice(col, overwrite, char);
         },
         get({row, col}) {
-            const h = this._hash({row, col});
-            if (h in this.memory) return this.memory[h];
+            if (row < this.memory.length && col < this.memory[row].length) {
+                return this.memory[row][col];
+            }
             return null;
         },
         restore({row, col}) {
-            const char = this.get({row, col});
-            if (char !== null) write.char(to.local({row, col}), char, color.font);
+            const memoryRow = this._memoryRow(row);
+            const char = this.get({row: memoryRow, col});
+            if (char !== null) write.char(to.local({row: memoryRow, col}), char, color.font);
         },
         delete({row, col}) {
-            delete this.memory[this._hash({row, col})];
+            this.memory[row].splice(col, 1);
+        },
+        delete_from({row, col}) {
+            const data = this.memory[row];
+            this.memory[row].splice(col, data.length - col);
         },
         _hash({row, col}) {
             return JSON.stringify({row, col});
+        },
+        _calculateLineCount() {
+            const second_last = this.memory.length - 2;
+            this.line_count.push(
+                this._max_offset() +
+                Math.max( // Ensure a count of at least one for empty lines
+                    1,
+                    Math.ceil(this.memory[second_last].length / size.cols)
+                )
+            );
+        },
+        _max_offset() {
+            const last = this.line_count.length - 1;
+            return (this.line_count.length === 0) ? 0 : this.line_count[last];
+        },
+        _workingLineCount() {
+            const last = this.memory.length - 1;
+            return Math.max( // Ensure a count of at least one for empty lines
+                1,
+                Math.ceil(this.memory[last].length / size.cols)
+            );
+        },
+        _memoryRow(row) {
+            for (let i = 0; i < this.line_count.length; i++) {
+                if (row + 1 <= this.line_count[i]) return i;
+            }
+            return this.line_count.length;
+        },
+        _expandMaybe({row}) {
+            for (let i = this.memory.length; i <= row; i++) {
+                this.memory.push([]);
+                if (i > 0) this._calculateLineCount();
+            }
         }
     };
 
@@ -204,8 +246,8 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         clear() {
             cursor.clear();
             let pos = this.pos;
+            mem.delete_from(pos);
             for (let i = 0; i < this.lst[this.index].length; i++) {
-                mem.delete(pos);
                 fill.rect(to.local(pos), color.background);
                 pos = move.pos(pos, vec.RIGHT);
             }
