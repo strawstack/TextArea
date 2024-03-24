@@ -26,78 +26,77 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         UP: {row: -1, col: 0},
         RIGHT: {row: 0, col: 1},
         DOWN: {row: 1, col: 0},
-        LEFT: {row: 0, col: -1}
+        LEFT: {row: 0, col: -1},
+        add(v1, v2) {
+            return {
+                row: v1.row + v2.row,
+                col: v1.col + v2.col
+            };
+        }
     };
 
-    // Pure
-    function hashCoord({row, col}) {
-        return JSON.stringify({row, col});
-    }
-
-    function add(v1, v2) {
-        return {
-            row: v1.row + v2.row,
-            col: v1.col + v2.col
-        };
-    }
-
     function isPrintable(key) {
-        const lowAlph = "abcdefghijklmnopqrstuvwxyz";
-        const highAlph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const number = "0123456789";
-        const symb = `!@#$%^&*()-_=+[{]};:'",<.>/?~ `;
-        return `${lowAlph}${highAlph}${number}${symb}`.indexOf(key) !== -1; 
+        const number  = "0123456789";
+        const lo_alph = "abcdefghijklmnopqrstuvwxyz";
+        const hi_alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const symb    = `!@#$%^&*()-_=+[{]};:'",<.>/?~ `;
+        return `${number}${lo_alph}${hi_alph}${symb}`.indexOf(key) !== -1; 
     }
 
-    function renderScroll() {
-        fill.canvas(color.background);
-        for (let row = state.scroll; row < state.scroll + size.rows; row++) {
-            for (let col = 0; col < size.cols; col++) {
-                const char = mem.get({row, col});
-                if (char !== null) write.char(to.local({row, col}), char, color.font);
+    const view = {
+        scroll(n) {
+            state.scroll += n;
+            if (state.scroll < 0) state.scroll = 0;
+            this._render();
+        },
+        scrollMaybe({row}) {
+            const viewTopLine = state.scroll; 
+            const viewBotLine = state.scroll + size.rows - 1; 
+            if (row < viewTopLine) {
+                this.scroll(row - viewTopLine);
+                
+            } else if (row > viewBotLine) {
+                this.scroll(viewTopLine - row);
+    
+            }
+        },
+        _render() {
+            fill.canvas(color.background);
+            for (let row = state.scroll; row < state.scroll + size.rows; row++) {
+                for (let col = 0; col < size.cols; col++) {
+                    const char = mem.get({row, col});
+                    if (char !== null) write.char(to.local({row, col}), char, color.font);
+                }
             }
         }
-    }
+    };
 
-    function scroll(n) {
-        state.scroll += n;
-        if (state.scroll < 0) state.scroll = 0;
-        renderScroll();
-    }
+    const move = {
+        pos({row, col}, vector) {
+            let {row: nrow, col: ncol} = vec.add({row, col}, vector);
 
-    function scrollIfNecessary({ row, col }) {
-        const viewTopLine = state.scroll; 
-        const viewBotLine = state.scroll + size.rows - 1; 
-        if (row < viewTopLine) {
-            scroll(row - viewTopLine);
+            // Wrap coord if exceeds left/right bounds
+            if (ncol >= size.cols) {
+                nrow += 1;
+                ncol = 0;
+    
+            } else if (ncol < 0) {
+                nrow -= 1;
+                ncol = size.cols - 1;
+    
+            }
+    
+            // Clamp row at top
+            if (nrow < 0) nrow = 0;
+    
+            view.scrollMaybe({row: nrow});
             
-        } else if (row > viewBotLine) {
-            scroll(viewTopLine - row);
+            return {row: nrow, col: ncol};
+        },
+        cursor() {
 
         }
-    }
-
-    function movePos({row, col}, vec) {
-        let {row: nrow, col: ncol} = add({row, col}, vec);
-
-        // Wrap coord if exceeds left/right bounds
-        if (ncol >= size.cols) {
-            nrow += 1;
-            ncol = 0;
-
-        } else if (ncol < 0) {
-            nrow -= 1;
-            ncol = size.cols - 1;
-
-        }
-
-        // Clamp row at top
-        if (nrow < 0) nrow = 0;
-
-        scrollIfNecessary({row: nrow, col: ncol});
-        
-        return {row: nrow, col: ncol};
-    }
+    };
 
     const to = {
         global({row, col}) {
@@ -123,6 +122,13 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         },
         distance(p1, p2) {
             return this.number(p2) - this.number(p1);
+        },
+        delta(text) {
+            const rows = text.split("\n");
+            return {
+                row: rows.length - 1, 
+                col: rows[rows.length - 1].length
+            };
         }
     };
 
@@ -165,140 +171,111 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     const write = {
         prompt() {
             const prompt = `${state.path.join("")}$ `;
-            writeTextAtCursor(prompt);
-            moveCursor(vec.RIGHT, prompt.length);
-            drawCursor();
+            this.text(prompt);
+            cursor.move(vec.RIGHT, prompt.length);
+            cursor.draw();
         },
         char({row, col}, char, color) {
             fillStyle(color);
             mem.save(to.global({row, col}), char);
             fillText(row, col, char);
-        }
-    }
-
-    function writeTextAtCursor(text) {
-        let pos = {...state.cursorPos};
-        for (let char of text) {
-            if (char === "\n") {
-                pos = movePos(pos, vec.DOWN);
-                pos.col = 0;
-            } else {
-                write.char(to.local(pos), char, color.font);
-                pos = movePos(pos, vec.RIGHT);
+        },
+        text(text) {
+            let pos = {...state.cursorPos};
+            for (let char of text) {
+                if (char === "\n") {
+                    pos = move.pos(pos, vec.DOWN);
+                    pos.col = 0;
+                } else {
+                    write.char(to.local(pos), char, color.font);
+                    pos = move.pos(pos, vec.RIGHT);
+                }
             }
         }
-    }
+    };
 
-    // Cursor
-    function clearCursor() {
-        fill.rect(to.local(state.cursorPos), color.background);
-    }
-
-    function drawCursor() {
-        fill.rect(to.local(state.cursorPos), color.font);
-    }
-
-    function moveCursor(vec, times) {
-        if (times === undefined) times = 1;
-        clearCursor();
-        mem.restore(state.cursorPos);
-        for (let i = 0; i < times; i++) {
-            state.cursorPos = movePos(state.cursorPos, vec);
+    const cursor = {
+        clear() {
+            fill.rect(to.local(state.cursorPos), color.background);
+        },
+        draw() {
+            fill.rect(to.local(state.cursorPos), color.font);
+        },
+        move(vector, n) {
+            if (n === undefined) n = 1;
+            this.clear();
+            mem.restore(state.cursorPos);
+            for (let i = 0; i < n; i++) {
+                state.cursorPos = move.pos(state.cursorPos, vector);
+            }
+            this.draw();
+        },
+        newline() {
+            state.cursorPos = move.pos(state.cursorPos, vec.DOWN);
+            state.cursorPos.col = 0;
         }
-        drawCursor();
-    }
-
-    function cursorDeltaFromText(data) {
-        const rows = data.split("\n");
-        return {
-            row: rows.length - 1, 
-            col: rows[rows.length - 1].length
-        };
-    }
-
-    function cursorNewLine() {
-        state.cursorPos = movePos(state.cursorPos, vec.DOWN);
-        state.cursorPos.col = 0;
-    }
-
-    function getCursorPosRelative() {
-        return {
-            row: state.cursorPos.row - state.scroll,
-            col: state.cursorPos.col
-        };
-    }
+    };
 
     // Cmd
-    function cmdShiftInsertChar(cursorPos, char) {
-        const cmdIndex = to.distance(to.local(state.cmdStartPos), cursorPos);
-        const command = state.cmds[state.cmdIndex];
-        let cpos = {...cursorPos};
-        for (let i = cmdIndex; i < command.length; i++) {
-            cpos = movePos(cpos, vec.RIGHT);
-            fill.rect(cpos, color.background);
-            write.char(cpos, command[i], color.font);
+    const cmd = {
+        clear() {
+            cursor.clear();
+            let pos = state.cmdStartPos;
+            for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
+                mem.delete(pos);
+                fill.rect(to.local(pos), color.background);
+                pos = move.pos(pos, vec.RIGHT);
+            }
+        },
+        show() {
+            state.cursorPos = state.cmdStartPos;
+            const cmd = state.cmds[state.cmdIndex];
+            write.text(cmd);
+            state.cursorPos = to.pos(charMagnitude(state.cursorPos) + cmd.length);
+            cursor.draw();
+        },
+        run(command) {
+            return state.cmdFunction(command);
+        },
+        insert(pos, char) {
+            const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
+            const command = state.cmds[state.cmdIndex];
+            let cpos = {...pos};
+            for (let i = cmdIndex; i < command.length; i++) {
+                cpos = move.pos(cpos, vec.RIGHT);
+                fill.rect(cpos, color.background);
+                write.char(cpos, command[i], color.font);
+            }
+            fill.rect(to.local(state.cursorPos), color.background);
+            write.char(to.local(state.cursorPos), char, color.font);
+            state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
+        },
+        delete(pos) {
+            const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
+            const command = state.cmds[state.cmdIndex];
+            let cpos = {...pos};
+            for (let i = cmdIndex; i < command.length - 1; i++) {
+                fill.rect(cpos, color.background);
+                write.char(cpos, command[i + 1], color.font);
+                cpos = move.pos(cpos, vec.RIGHT);
+            }
+            const cmdEnd = to.pos(to.number(to.local(state.cmdStartPos)) + command.length - 1);
+            mem.delete(to.global(cmdEnd));
+            fill.rect(cmdEnd, color.background);
+            state.cmds[state.cmdIndex].splice(cmdIndex, 1);
         }
-        fill.rect(cursorPos, color.background);
-        const cp = getCursorPosRelative();
-        write.char(cp, char, color.font);
-        state.cmds[state.cmdIndex].splice(cmdIndex, 0, char);
-    }
-
-    function cmdShiftDeleteChar(pos) {
-        const cmdIndex = to.distance(to.local(state.cmdStartPos), pos);
-        const command = state.cmds[state.cmdIndex];
-        let cpos = {...pos};
-        for (let i = cmdIndex; i < command.length - 1; i++) {
-            fill.rect(cpos, color.background);
-            write.char(cpos, command[i + 1], color.font);
-            cpos = movePos(cpos, vec.RIGHT);
-        }
-        const cmdEnd = to.pos(to.number(to.local(state.cmdStartPos)) + command.length - 1);
-        mem.delete(to.global(cmdEnd));
-        fill.rect(cmdEnd, color.background);
-        state.cmds[state.cmdIndex].splice(cmdIndex, 1);
-    }
-
-    function clearCmd() {
-        clearCursor();
-        let pos = state.cmdStartPos;
-        for (let i = 0; i < state.cmds[state.cmdIndex].length; i++) {
-            mem.delete(pos);
-            fill.rect(to.local(pos), color.background);
-            pos = movePos(pos, vec.RIGHT);
-        }
-    }
-
-    function showCmd() {
-        state.cursorPos = state.cmdStartPos;
-        const cmd = state.cmds[state.cmdIndex];
-        writeTextAtCursor(cmd);
-        state.cursorPos = to.pos(charMagnitude(state.cursorPos) + cmd.length);
-        drawCursor();
-    }
-
-    function getCommandPosRelative() {
-        return {
-            row: state.cmdStartPos.row - state.scroll,
-            col: state.cmdStartPos.col
-        };
-    }
-
-    // Command Event
-    function onCommand(cmd) {
-        return state.cmdFunction(cmd);
-    }
+    };
 
     // Event handlers
     function handleMouseWheel(e) {
         const { deltaY } = e;
         if (deltaY < 0) {
-            scroll(-1);
-            drawCursor();
+            view.scroll(-1);
+            cursor.draw();
         } else {
             if (state.scroll < state.maxScroll) {
-                scroll(1);
-                drawCursor();
+                view.scroll(1);
+                cursor.draw();
             }
         }
     }
@@ -310,57 +287,57 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         const cmdOffset = to.distance(to.local(state.cmdStartPos), to.local(state.cursorPos));
 
         if (isPrintable(key)) {
-            cmdShiftInsertChar(getCursorPosRelative(), key);
-            moveCursor(vec.RIGHT);
+            cmd.insert(to.local(state.cursorPos), key);
+            cursor.move(vec.RIGHT);
 
         } else if (key === "ArrowUp") {
-            clearCmd();
+            cmd.clear();
             state.cmdIndex += 1;
             state.cmdIndex = Math.min(state.cmdIndex, state.cmds.length - 1);
-            showCmd(state.cmdIndex);
+            cmd.show(state.cmdIndex);
 
         } else if (key === "ArrowDown") {
-            clearCmd();
+            cmd.clear();
             state.cmdIndex -= 1;
             state.cmdIndex = Math.max(state.cmdIndex, 0);
-            showCmd(state.cmdIndex);
+            cmd.show(state.cmdIndex);
 
         } else if (key === "ArrowLeft") {
             if (cmdOffset > 0) {
-                moveCursor(vec.LEFT);
+                cursor.move(vec.LEFT);
             }
 
         } else if (key === "ArrowRight") {
             if (cmdOffset < state.cmds[state.cmdIndex].length) {
-                moveCursor(vec.RIGHT);
+                cursor.move(vec.RIGHT);
             }
 
         } else if (key === "Backspace") {
             if (cmdOffset > 0) {
-                moveCursor(vec.LEFT);
-                cmdShiftDeleteChar(getCursorPosRelative());
-                drawCursor();
+                cursor.move(vec.LEFT);
+                cmd.delete(to.local(state.cursorPos));
+                cursor.draw();
             }
             
         } else if (key === "Enter") {
-            const cmd = state.cmds[state.cmdIndex];
+            const command = state.cmds[state.cmdIndex];
 
-            if (state.cmdIndex !== 0) state.cmds[0] = cmd;
+            if (state.cmdIndex !== 0) state.cmds[0] = command;
 
-            clearCursor();
-            cursorNewLine();
+            cursor.clear();
+            cursor.newline();
 
             state.cmds.unshift([]);
             state.cmdIndex = 0;
 
-            const { type, data } = onCommand(cmd.join(""));
+            const { type, data } = cmd.run(command.join(""));
 
             if (type === "text") {
-                writeTextAtCursor(data);
-                state.cursorPos = add(state.cursorPos, cursorDeltaFromText(data));
+                write.text(data);
+                state.cursorPos = vec.add(state.cursorPos, to.delta(data));
             }
 
-            cursorNewLine();
+            cursor.newline();
             write.prompt();
             state.cmdStartPos = {...state.cursorPos};
 
