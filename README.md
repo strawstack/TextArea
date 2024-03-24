@@ -17,6 +17,7 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 
 - [ ] Implement line wrapping when width changes
 
+- [x] Memory object is a string array now to help with responsive line wrapping
 - [x] Enter submits command
 - [x] Bash acts on a command
 - [x] Implement vertical scroll
