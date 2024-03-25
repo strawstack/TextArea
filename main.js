@@ -36,9 +36,13 @@
         initTerminal();
 
         // Bash
-        const { init: initBash } = bash(ter);
+        const { init: initBash, registerCmd } = bash(ter);
         initBash();
 
+        // Vim
+        const { init: initVim } = vim({ registerCmd, ...ta, size });
+        initVim();
+        
     }
 
     await document.fonts.ready;

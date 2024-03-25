@@ -39,6 +39,12 @@ function bash({ onCommand }) {
     }
 
     return {
-        init
+        init,
+        registerCmd: ({name, call, info}) => {
+            commands[name] = {
+                call,
+                info
+            };
+        } 
     };
 }
