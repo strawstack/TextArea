@@ -69,9 +69,6 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             view.scrollMaybe({row: nrow});
             
             return {row: nrow, col: ncol};
-        },
-        cursor() {
-
         }
     };
 
@@ -335,6 +332,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
             
         } else if (key === "Enter") {
+            debugger
             const command = cmd.lst[cmd.index];
 
             if (cmd.index !== 0) cmd.lst[0] = command;
@@ -350,6 +348,11 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             if (type === "text") {
                 write.text(data);
                 cursor.pos = vec.add(cursor.pos, to.delta(data));
+            
+            } else if (type === "launch") {
+                stop();
+                data({ exit });
+
             }
 
             cursor.newline();
@@ -375,6 +378,18 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         }
     }
 
+    function stop() {
+        // Terminal will stop allowing a
+        // launched process to take over
+        console.log("Terminal stops.");
+    }
+
+    function exit() {
+        // Another process has exited and 
+        // terminal is now the active app
+        console.log("Terminal active.");
+    }
+
     function init() {
         fill.canvas(color.background);
         write.prompt();
@@ -385,6 +400,8 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     return {
         init,
-        onCommand: func => cmd.func = func
+        onCommand: func => {
+            cmd.func = func;
+        }
     };
 }
