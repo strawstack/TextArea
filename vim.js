@@ -1,5 +1,8 @@
 function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
+    // Set by 'start' inside 'init' below
+    let api = {};
+
     const color = {
         font: 'white',
         background: '#444444'
@@ -118,67 +121,16 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
     };
 
     const mem = {
-        memory: [],
+        document: [],
         line_count: [], // A row in memory may occupy several visual lines
         save({row, col}, char) {
-            this._expandMaybe({row});
-            view.max_offset = this._max_offset(); // Track maxScroll
-            const overwrite = col < this.memory[row].length;
-            this.memory[row].splice(col, overwrite, char);
+            
         },
         get({row, col}) {
-            if (row < this.memory.length && col < this.memory[row].length) {
-                return this.memory[row][col];
-            }
-            return null;
+            
         },
         restore({row, col}) {
-            const memoryRow = this._memoryRow(row);
-            const char = this.get({row: memoryRow, col});
-            if (char !== null) write.char(to.local({row: memoryRow, col}), char, color.font);
-        },
-        delete({row, col}) {
-            this.memory[row].splice(col, 1);
-        },
-        delete_from({row, col}) {
-            const data = this.memory[row];
-            this.memory[row].splice(col, data.length - col);
-        },
-        _hash({row, col}) {
-            return JSON.stringify({row, col});
-        },
-        _calculateLineCount() {
-            const second_last = this.memory.length - 2;
-            this.line_count.push(
-                this._max_offset() +
-                Math.max( // Ensure a count of at least one for empty lines
-                    1,
-                    Math.ceil(this.memory[second_last].length / size.cols)
-                )
-            );
-        },
-        _max_offset() {
-            const last = this.line_count.length - 1;
-            return (this.line_count.length === 0) ? 0 : this.line_count[last];
-        },
-        _workingLineCount() {
-            const last = this.memory.length - 1;
-            return Math.max( // Ensure a count of at least one for empty lines
-                1,
-                Math.ceil(this.memory[last].length / size.cols)
-            );
-        },
-        _memoryRow(row) {
-            for (let i = 0; i < this.line_count.length; i++) {
-                if (row + 1 <= this.line_count[i]) return i;
-            }
-            return this.line_count.length;
-        },
-        _expandMaybe({row}) {
-            for (let i = this.memory.length; i <= row; i++) {
-                this.memory.push([]);
-                if (i > 0) this._calculateLineCount();
-            }
+
         }
     };
 
@@ -199,7 +151,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                     pos = move.pos(pos, vec.RIGHT);
                 }
             }
-        }
+        },
     };
 
     const cursor = {
@@ -233,14 +185,19 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         return `${number}${lo_alph}${hi_alph}${symb}`.indexOf(key) !== -1; 
     }
 
-    function handleKeyDown(e, api) {
+    function handleKeyDown(e) {
         
         const { key } = e;
 
         if (isPrintable(key)) {
             
             if (key === "q") {
+                removeEventListeners();
                 api.exit();
+
+            } else {
+                write.text(key);
+                cursor.move(vec.RIGHT);
             }
 
         } else if (key === "ArrowUp") {
@@ -256,7 +213,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             cursor.move(vec.RIGHT);
 
         } else if (key === "Backspace") {
-            
+
         } else if (key === "Enter") {
 
         } else {
@@ -267,16 +224,23 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     function handleMouseWheel(e) {
         const { deltaY } = e;
-        
+        if (deltaY < 0) {
+            view.scroll(-1);
+            cursor.draw();
+        } else {
+            if (view.offset < view.max_offset) {
+                view.scroll(1);
+                cursor.draw();
+            }
+        }
     }
 
     function init() {
-        const start = api => {
-            console.log("vim launches.");
+        const start = _api => {
+            api = _api;
             fill.canvas(color.background);
-            write.text("This is vim. Press 'q' to quit.");
-            window.addEventListener("keydown", e => handleKeyDown(e, api));
-            window.addEventListener("wheel", handleMouseWheel);
+            cursor.draw();
+            addEventListeners();
         };
 
         registerCmd({
@@ -291,6 +255,16 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             },
             info: "Launch vim"
         });
+    }
+
+    function addEventListeners() {
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("wheel", handleMouseWheel);
+    }
+
+    function removeEventListeners() {
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("wheel", handleMouseWheel);
     }
 
     return {

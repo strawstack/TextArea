@@ -33,8 +33,7 @@
         const ter = terminal({...ta, size});
 
         const { init: initTerminal } = ter;
-        initTerminal();
-
+        
         // Bash
         const { init: initBash, registerCmd } = bash(ter);
         initBash();
@@ -43,6 +42,7 @@
         const { init: initVim } = vim({ registerCmd, ...ta, size });
         initVim();
         
+        initTerminal();
     }
 
     await document.fonts.ready;

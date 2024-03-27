@@ -24,7 +24,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
         scroll(n) {
             this.offset += n;
             if (this.offset < 0) this.offset = 0;
-            this._render();
+            this.render();
         },
         scrollMaybe({row}) {
             const viewTopLine = this.offset; 
@@ -37,7 +37,7 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     
             }
         },
-        _render() {
+        render() {
             fill.canvas(color.background);
             for (let row = this.offset; row < this.offset + size.rows; row++) {
                 for (let col = 0; col < size.cols; col++) {
@@ -332,7 +332,6 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             }
             
         } else if (key === "Enter") {
-            debugger
             const command = cmd.lst[cmd.index];
 
             if (cmd.index !== 0) cmd.lst[0] = command;
@@ -348,16 +347,20 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
             if (type === "text") {
                 write.text(data);
                 cursor.pos = vec.add(cursor.pos, to.delta(data));
+                cursor.newline();
+                write.prompt();
+                cmd.pos = {...cursor.pos};
             
             } else if (type === "launch") {
+                cursor.newline();
+                write.prompt();
+                cmd.pos = {...cursor.pos};
                 stop();
                 data({ exit });
 
             }
 
-            cursor.newline();
-            write.prompt();
-            cmd.pos = {...cursor.pos};
+            
 
         } else {
             // console.log(key);
@@ -379,23 +382,42 @@ function terminal({ fillText, fillRect, fillCanvas, fillStyle, size }) {
     }
 
     function stop() {
-        // Terminal will stop allowing a
-        // launched process to take over
-        console.log("Terminal stops.");
+        // Terminal stops; launched process will take over
+        removeEventListeners();
+        fill.canvas(color.background);
     }
 
     function exit() {
-        // Another process has exited and 
-        // terminal is now the active app
-        console.log("Terminal active.");
+        // Otehr process stops; terminal becomes the active app
+        resume();
+    }
+
+    function resume() {
+        fill.canvas(color.background);
+        view.render();
+        cursor.draw();
+        addEventListeners();
     }
 
     function init() {
         fill.canvas(color.background);
         write.prompt();
         cmd.pos = {...cursor.pos};
+        addEventListeners();
+
+        // debug, type vim, press enter
+        "vim".split("").forEach(key => handleKeyDown({ key }));
+        handleKeyDown({key: "Enter"});
+    }
+
+    function addEventListeners() {
         window.addEventListener("keydown", handleKeyDown);
         window.addEventListener("wheel", handleMouseWheel);
+    }
+
+    function removeEventListeners() {
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("wheel", handleMouseWheel);
     }
 
     return {
