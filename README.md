@@ -12,11 +12,23 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 
 # Todo
 
-- [ ] Bring in filesystem
-- [ ] Vim installs itself as a bash command
+- [ ] Work on Vim
+    - [ ] Modify mem and visual document on basic typing actions
+        - [ ] Implement typed character (end and middle of line)
+        - [ ] Implement enter key press (end and middle of line)
+        - [ ] Implement delete key operates on multi-character selection (end and middle of line)
+    - [ ] Vim starts in Command mode 
+    - [ ] Ability to switch modes: Insert, Visual, and Visual Block
+    - [ ] Skip one word back and forward in Command mode
+    - [ ] Jump to start and end of line with $ and ^ in Command mode
+    - [ ] Switch to edit mode with "i"
+    - [ ] Switch to command mode with "escape"
+    - [ ] Switch to visual mode and make a selection
 
+- [ ] Bring in filesystem
 - [ ] Implement line wrapping when width changes
 
+- [x] Vim installs itself as a bash command
 - [x] Memory object is a string array now to help with responsive line wrapping
 - [x] Enter submits command
 - [x] Bash acts on a command
