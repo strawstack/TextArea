@@ -13,6 +13,7 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 # Todo
 
 - [ ] Work on Vim
+    - [ ] Read in a document for testing
     - [ ] Modify mem and visual document on basic typing actions
         - [ ] Implement typed character (end and middle of line)
         - [ ] Implement enter key press (end and middle of line)

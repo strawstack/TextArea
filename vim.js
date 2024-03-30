@@ -55,6 +55,9 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
     };
 
     const move = {
+        grid({row, col}, vector) {
+            return vec.add({row, col}, vector);
+        },
         pos({row, col}, vector) {
             if (vec.eq(vector, vec.UP)) {
                 const memRow = mem.getMemoryRow(row);
@@ -65,7 +68,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 const memRowLength = mem.document[row].length;
                 let nrow = row;
                 let ncol = col + 1;
-                if (ncol >= memRowLength) ncol = memRowLength - 1;
+                if (ncol > memRowLength) ncol = memRowLength;
                 if (ncol >= size.cols) {
                     nrow += 1;
                     ncol = 0;
@@ -76,15 +79,16 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
             } else if (vec.eq(vector, vec.LEFT)) {
                 const origMemRow = mem.getMemoryRow(row);
-                let nrow = row;
+                let nrow = row - 1;
+                const newMemRow = mem.getMemoryRow(Math.max(0 , nrow));
+                
                 let ncol = col - 1;
-                if (ncol < 0) {
-                    nrow -= 1;
-                    ncol = size.cols - 1;
-                    if (nrow < 0) nrow = 0;
-                    const newMemRow = mem.getMemoryRow(nrow);
-                    if (origMemRow !== newMemRow) return {row, col};
-                }
+                if (ncol >= 0) return {row, col: ncol};
+
+                if (origMemRow !== newMemRow || row === 0) return {row, col: 0};
+
+                ncol = size.cols - 1;
+                
                 return {row: nrow, col: ncol};
             }
         }
@@ -140,7 +144,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         line_count: [], // A row in memory may occupy several visual lines
         save({row, col}, char) {
             this.expandMemoryMaybe(row);
-            this.document[row].splice(col, 0, char);
+            this.document[row].splice(col, 1, char);
             mem.calculateLineCount();
         },
         get({row, col}) {
@@ -156,10 +160,12 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         },
         expandMemoryMaybe(row) {
             const count = (row + 1) - this.document.length;
-            Array(count).fill(null).forEach(e => {
-                this.document.push([]);
-                this.line_count.push(0);
-            });
+            if (count > 0) {
+                Array(count).fill(null).forEach(e => {
+                    this.document.push([]);
+                    this.line_count.push(0);
+                });
+            }
         },
         calculateLineCount() {
             let previous = 0;
@@ -207,6 +213,24 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 }
             }
         },
+        document(data) {
+            let pos = {row: 0, col: 0};
+            for (let i = 0; i < data.length; i++) {
+                const char = data[i];
+                if (char === "\n") {
+                    pos.row += 1;
+                    pos.col = 0;
+
+                } else {
+                    this.char(pos, char, color.font);
+                    pos.col += 1;
+                    if (pos.col >= size.cols) {
+                        pos.row += 1;
+                        pos.col = 0;
+                    }
+                }
+            }
+        }
     };
 
     const cursor = {
@@ -227,8 +251,10 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             this.draw();
         },
         newline() {
-            this.pos = move.pos(this.pos, vec.DOWN);
+            this.clear();
+            this.pos = move.grid(this.pos, vec.DOWN);
             this.pos.col = 0;
+            this.draw();
         }
     };
 
@@ -270,6 +296,10 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         } else if (key === "Backspace") {
 
         } else if (key === "Enter") {
+            cursor.newline();
+
+        } else if (key === "`") {
+            console.log(mem.document);
 
         } else {
             console.log(key);
@@ -294,6 +324,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         const start = _api => {
             api = _api;
             fill.canvas(color.background);
+            write.document(`This is line one.\nLine two.\nAnd this is line three.`); // TODO: Remove in production
             cursor.draw();
             addEventListeners();
         };
