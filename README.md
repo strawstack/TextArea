@@ -15,9 +15,9 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 - [ ] Work on Vim
     - [ ] Read in a document for testing
     - [ ] Modify mem and visual document on basic typing actions
-        - [ ] Implement typed character (end and middle of line)
         - [ ] Implement enter key press (end and middle of line)
-        - [ ] Implement delete key operates on multi-character selection (end and middle of line)
+        - [x] Implement typed character (end and middle of line)
+        - [x] Implement delete key middle and end 
     - [ ] Vim starts in Command mode 
     - [ ] Ability to switch modes: Insert, Visual, and Visual Block
     - [ ] Skip one word back and forward in Command mode
@@ -41,3 +41,7 @@ A full screen responsive customizable character grid using HTML 5 Canvas.
 - [x] Prompt
 - [x] Up arrow cycles previous commands
 - [x] Bound cursor to "used area"
+
+# Bugs
+
+- [x] Typing a character at the end of a line prints undefined

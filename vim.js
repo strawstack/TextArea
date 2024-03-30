@@ -5,6 +5,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     const color = {
         font: 'white',
+        cursor: 'rgba(255, 255, 255, 0.5)',
         background: '#444444'
     };
 
@@ -156,17 +157,31 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         save({row, col}, char) {
             this.expandMemoryMaybe(row);
             this.document[row].splice(col, 1, char);
-            mem.calculateLineCount();
+            this.calculateLineCount();
         },
         get({row, col}) {
             if (row >= this.document.length) return null;
             if (col >= this.document[row].length) return null;
             return this.document[row][col];
         },
+        getRange({row, col}) {
+            if (row >= this.document.length) return null;
+            return this.document[row].slice(col);
+        },
+        remove({row, col}) {
+            this.document[row].splice(col, 1);
+            this.calculateLineCount();
+        },
         restore({row, col}) {
             const char = this.get({row, col});
             if (char !== null) {
                 write.char({row, col}, char, color.font);
+            }
+        },
+        shiftRight({row, col}) {
+            if (col < this.document[row].length) {
+                this.document[row].splice(col, 0, this.document[row][col]);
+                this.calculateLineCount();
             }
         },
         expandMemoryMaybe(row) {
@@ -212,8 +227,8 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             mem.save(to.global({row, col}), char);
             fillText(row, col, char);
         },
-        text(text) {
-            let pos = {...cursor.pos};
+        text({row, col}, text) {
+            let pos = {row, col};
             for (let char of text) {
                 if (char === "\n") {
                     pos = move.pos(pos, vec.DOWN);
@@ -223,6 +238,29 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                     pos = move.pos(pos, vec.RIGHT);
                 }
             }
+        },
+        clearRange({row, col}, length) {
+            // Clear to end of line
+            let pos = {row, col};
+            let count = length;
+            while (count > 0) {
+                fill.rect(pos, color.background);
+                pos = move.pos(pos, vec.RIGHT);
+                count -= 1;
+            }
+        },
+        shiftRight({row, col}) {
+            mem.shiftRight({row, col});
+            const range = mem.getRange({row, col});
+            write.clearRange({row, col}, range.length);
+            this.text({row, col}, range);
+        },
+        shiftLeft({row, col}) {
+            const posBefore = move.pos({row, col}, vec.LEFT); 
+            mem.remove(posBefore);
+            const range = mem.getRange(posBefore);
+            write.clearRange(posBefore, range.length + 1);
+            this.text(posBefore, range);
         },
         document(data) {
             let pos = {row: 0, col: 0};
@@ -250,7 +288,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             fill.rect(to.local(this.pos), color.background);
         },
         draw() {
-            fill.rect(to.local(this.pos), color.font);
+            fill.rect(to.local(this.pos), color.cursor);
         },
         move(vector, n) {
             if (n === undefined) n = 1;
@@ -288,8 +326,10 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 api.exit();
 
             } else {
+                write.shiftRight(cursor.pos, vec.RIGHT);
                 write.char(cursor.pos, key, color.font);
                 cursor.move(vec.RIGHT);
+                
             }
 
         } else if (key === "ArrowUp") {
@@ -305,6 +345,8 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             cursor.move(vec.RIGHT);
 
         } else if (key === "Backspace") {
+            write.shiftLeft(cursor.pos);
+            cursor.move(vec.LEFT);
 
         } else if (key === "Enter") {
             cursor.newline();
