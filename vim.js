@@ -349,6 +349,15 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             cursor.move(vec.LEFT);
 
         } else if (key === "Enter") {
+            
+            // Clear remainder of line
+            
+            // Clear every line below
+            
+            // Update memory 'split' at cursor (meaning insert remainer as new line)
+            
+            // Write memory as document starting at cursor
+            
             cursor.newline();
 
         } else if (key === "`") {
