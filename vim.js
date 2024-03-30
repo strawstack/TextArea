@@ -62,7 +62,10 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             if (vec.eq(vector, vec.UP)) {
                 const memRow = mem.getMemoryRow(row);
                 const newMemRow = Math.max(0, memRow - 1);
-                return { row: newMemRow, col: 0 };
+                return { 
+                    row: newMemRow, 
+                    col: Math.min(col, mem.document[newMemRow].length) 
+                };
                 
             } else if (vec.eq(vector, vec.RIGHT)) {
                 const memRowLength = mem.document[row].length;
@@ -76,7 +79,15 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 return {row: nrow, col: ncol};
 
             } else if (vec.eq(vector, vec.DOWN)) {
-
+                const memRow = mem.getMemoryRow(row);
+                const lastLine = mem.line_count[mem.line_count.length - 1];
+                if (row + 1 === lastLine) {
+                    return { row, col: mem.document[mem.document.length - 1].length % size.cols };
+                } else {
+                    const newMemRow = memRow + 1;
+                    return { row: newMemRow, col: Math.min(col, mem.document[newMemRow].length) };
+                }
+                
             } else if (vec.eq(vector, vec.LEFT)) {
                 const origMemRow = mem.getMemoryRow(row);
                 let nrow = row - 1;
