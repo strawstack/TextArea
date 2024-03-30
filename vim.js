@@ -18,6 +18,9 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 row: v1.row + v2.row,
                 col: v1.col + v2.col
             };
+        }, 
+        eq(v1, v2) {
+            return v1.row === v2.row && v1.col === v2.col;
         }
     };
 
@@ -53,25 +56,37 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
     const move = {
         pos({row, col}, vector) {
-            let {row: nrow, col: ncol} = vec.add({row, col}, vector);
+            if (vec.eq(vector, vec.UP)) {
+                const memRow = mem.getMemoryRow(row);
+                const newMemRow = Math.max(0, memRow - 1);
+                return { row: newMemRow, col: 0 };
+                
+            } else if (vec.eq(vector, vec.RIGHT)) {
+                const memRowLength = mem.document[row].length;
+                let nrow = row;
+                let ncol = col + 1;
+                if (ncol >= memRowLength) ncol = memRowLength - 1;
+                if (ncol >= size.cols) {
+                    nrow += 1;
+                    ncol = 0;
+                }
+                return {row: nrow, col: ncol};
 
-            // Wrap coord if exceeds left/right bounds
-            if (ncol >= size.cols) {
-                nrow += 1;
-                ncol = 0;
-    
-            } else if (ncol < 0) {
-                nrow -= 1;
-                ncol = size.cols - 1;
-    
+            } else if (vec.eq(vector, vec.DOWN)) {
+
+            } else if (vec.eq(vector, vec.LEFT)) {
+                const origMemRow = mem.getMemoryRow(row);
+                let nrow = row;
+                let ncol = col - 1;
+                if (ncol < 0) {
+                    nrow -= 1;
+                    ncol = size.cols - 1;
+                    if (nrow < 0) nrow = 0;
+                    const newMemRow = mem.getMemoryRow(nrow);
+                    if (origMemRow !== newMemRow) return {row, col};
+                }
+                return {row: nrow, col: ncol};
             }
-    
-            // Clamp row at top
-            if (nrow < 0) nrow = 0;
-    
-            view.scrollMaybe({row: nrow});
-            
-            return {row: nrow, col: ncol};
         }
     };
 
@@ -124,13 +139,53 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         document: [],
         line_count: [], // A row in memory may occupy several visual lines
         save({row, col}, char) {
-            
+            this.expandMemoryMaybe(row);
+            this.document[row].splice(col, 0, char);
+            mem.calculateLineCount();
         },
         get({row, col}) {
-            
+            if (row >= this.document.length) return null;
+            if (col >= this.document[row].length) return null;
+            return this.document[row][col];
         },
         restore({row, col}) {
-
+            const char = this.get({row, col});
+            if (char !== null) {
+                write.char({row, col}, char, color.font);
+            }
+        },
+        expandMemoryMaybe(row) {
+            const count = (row + 1) - this.document.length;
+            Array(count).fill(null).forEach(e => {
+                this.document.push([]);
+                this.line_count.push(0);
+            });
+        },
+        calculateLineCount() {
+            let previous = 0;
+            for (let i = 0; i < this.document.length; i++) {
+                this.line_count[i] = previous + Math.ceil(this.document[i].length / size.cols);
+                previous = this.line_count[i];
+            }
+        },
+        getMemoryRow(visualRow) {
+            for (let i = 0; i < this.line_count.length; i++) {
+                if (this.line_count[i] > visualRow) {
+                    return i;
+                }
+            }
+        },
+        getVisualLineLength(visualRow) {
+            /* TODO: function not tested
+            const memoryRow = this.getMemoryRow(visualRow);
+            const visualRowsBefore = (memoryRow === 0) ? 0 : this.line_count[memoryRow - 1];
+            const memoryVisualLineLength = Math.ceil(this.document[memoryRow].length / size.cols);
+            const visualOffset = visualRow - visualRowsBefore;
+            if (visualOffset === memoryVisualLineLength) {
+                return this.document[memoryRow].length % size.cols;
+            } else {
+                return size.cols - 1;
+            } */
         }
     };
 
@@ -196,7 +251,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 api.exit();
 
             } else {
-                write.text(key);
+                write.char(cursor.pos, key, color.font);
                 cursor.move(vec.RIGHT);
             }
 
@@ -208,7 +263,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
 
         } else if (key === "ArrowLeft") {
             cursor.move(vec.LEFT);
-
+            
         } else if (key === "ArrowRight") {
             cursor.move(vec.RIGHT);
 
