@@ -3,6 +3,30 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
     // Set by 'start' inside 'init' below
     let api = {};
 
+    const modes = {
+        "COMMAND": 0,
+        "INSERT": 1,
+        "VISUAL": 2,
+        "VISUAL_LINE": 3,
+    };
+
+    const mode = {
+        current: modes.COMMAND,
+        set(m) {
+            this.render();
+            this.current = m;
+        },
+        is(m) {
+            return m === this.current;
+        },
+        get() {
+            return this.current;
+        },
+        render() {
+            // TODO render to second last line in view
+        }
+    };
+
     const color = {
         font: 'white',
         cursor: 'rgba(255, 255, 255, 0.5)',
@@ -382,11 +406,35 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
         return `${number}${lo_alph}${hi_alph}${symb}`.indexOf(key) !== -1; 
     }
 
+    const cmd = {
+        buffer: [],
+        commands: {
+            w: () => {
+                console.log("run w");
+            },
+            b: () => {
+                console.log("run b");
+            },
+            i: () => {
+                console.log("run i");
+            }
+        },
+        pop() {
+            return parseInt(buffer.join(""), 10);
+        },
+        check(char) {
+            return char in this.commands;
+        },
+        run(char) {
+            this.commands[char]();
+        }
+    };
+
     function handleKeyDown(e) {
         
         const { key } = e;
 
-        if (isPrintable(key)) {
+        if (mode.is(modes.INSERT) && isPrintable(key)) {
             
             if (key === "q") {
                 removeEventListeners();
@@ -398,6 +446,9 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
                 cursor.move(vec.RIGHT);
                 
             }
+
+        } else if (mode.is(modes.COMMAND) && cmd.check(key)) {
+            cmd.run(key);
 
         } else if (key === "ArrowUp") {
             cursor.move(vec.UP);
@@ -496,6 +547,7 @@ function vim({ registerCmd, fillText, fillRect, fillCanvas, fillStyle, size }) {
             fill.canvas(color.background);
             write.document(`This is line one.\nLine two.\nAnd this is line three.`, {row: 0, col: 0});
             cursor.draw();
+            mode.set(modes.COMMAND);
             addEventListeners();
         };
 
